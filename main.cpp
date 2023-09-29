@@ -1,19 +1,92 @@
-#include <QtCore>
+#include <iostream>
+#include <map>
+#include <string>
+#include <list>
+#include <vector>
+#include <algorithm>
+#include <sys/types.h>
+#include <dirent.h>
+#include <cstdio>
+#include <sys/stat.h>
+//#include <QtCore>
+
+typedef unsigned __int128 uint128_t;
+
+static bool is_file(const std::string& filename) {
+    struct stat   buffer;
+    return (stat (filename.c_str(), &buffer) == 0 && S_ISREG(buffer.st_mode));
+}
+
+static bool is_dir(const std::string& filefodler) {
+    struct stat   buffer;
+    return (stat (filefodler.c_str(), &buffer) == 0 && S_ISDIR(buffer.st_mode));
+}
 
 enum MARK_TYPE
 {
     MD5,
-    POINT24,
-    POINT64,
     POINT128
 };
 
+/*
 struct FileCheck
 {
     QFileInfo info;
     __int128 speedMark;
 };
+*/
 
+struct ent{
+    std::string name;
+    uint128_t mark;
+    ent(std::string name): name(name){}
+    bool operator<(const ent &e) const {
+        return name < e.name;
+    }
+};
+
+void adddir(std::vector<ent>& files, std::list<std::string>& dirs)
+{
+    while (!dirs.empty())
+    {
+        std::string name = dirs.front();
+        dirs.pop_front();
+
+        DIR *dp = opendir(name.c_str());
+        if (!dp)
+        {
+            perror("Couldn't open the directory ");
+            std::cout << name << std::endl;
+            closedir(dp);
+            continue;
+        }
+
+        struct dirent *ep;
+        while((ep = readdir(dp)))
+        {
+            if(ep->d_name[0] != '.')
+            {
+                std::string path(ep->d_name, ep->d_namlen);
+                std::string fullpath = name + "/" + path;
+                std::cout << fullpath << std::endl;
+                if (is_file(fullpath))
+                {
+                     files.push_back(ent(fullpath));
+
+                }
+
+                if (is_dir(fullpath))
+                {
+                     dirs.push_back(fullpath);
+                }
+
+            }
+        }
+        closedir(dp);
+    }
+}
+
+/*
 QString convertToSytemEncode(const QByteArray &srcString)
 {
     const char* systemCode =
@@ -30,11 +103,10 @@ QString convertToSytemEncode(const QByteArray &srcString)
     }
     return pTextCodec->toUnicode(srcString);
 }
-
-QMap<QString, QVariant> ParseArg(int argc, char **argv)
+*/
+std::map<std::string, std::string> parseArg(int argc, char **argv, std::list<std::string>& absVl)
 {
-    QMap<QString, QVariant> res;
-    QVariantList absVl;
+    std::map<std::string, std::string> res;
 
     if (argc <= 1)
     {
@@ -48,50 +120,53 @@ QMap<QString, QVariant> ParseArg(int argc, char **argv)
     };
 
     DoState ds = ABS_ARG;
-    QString sc;
+    std::string sc;
+
     for (int i = 1; i < argc; ++i)
     {
-        QByteArray barg(argv[i]);
-        QString arg = convertToSytemEncode(barg);
-        if (arg.startsWith("-"))
+        std::string arg(argv[i]);
+
+        if (arg.rfind("-", 0) == 0)
         {
             if (arg.size() > 1)
             {
                 ds = SECTION_ARG;
-                if (!sc.isEmpty())
+                if (!sc.empty())
                 {
-                    res.insert(sc, QVariant());
+                    res.insert({sc, std::string()});
                 }
 
-                sc = arg.mid(1, arg.size() - 1);
+                sc = arg.substr(1, arg.size() - 1);
             }
         }
         else
         {
             if (ds == SECTION_ARG)
             {
-                res.insert(sc, arg);
+                res.insert({sc, arg});
                 sc.clear();
             }
             else
             {
-                absVl.append(arg);
+                absVl.push_back(arg);
             }
 
             ds = ABS_ARG;
         }
+
     }
 
-    if (!sc.isEmpty())
+    if (!sc.empty())
     {
-        res.insert(sc, QVariant());
+        res.insert({sc, std::string()});
         sc.clear();
     }
 
-    res.insert("-abs_all_params", absVl);
     return res;
+
 }
 
+/*
 void traversalFile(const QFileInfo& fi, std::function<void(const QFileInfo&)> doFunc = nullptr)
 {
     if (!fi.exists())
@@ -210,15 +285,25 @@ QByteArray Get64Info(const QString &fileName)
     file.close();
     return array64;
 }
-
+*/
 
 int main(int argc, char *argv[])
 {
-    QMap<QString, QVariant> vars = ParseArg(argc, argv);
+    std::list<std::string> absVl;
+    std::map<std::string, std::string> vars = parseArg(argc, argv, absVl);
     for (auto i = vars.begin(); i != vars.end(); ++i)
     {
-        qDebug() << i.key() << i.value();
+        std::cout << i->first << i->second << std::endl;
     }
+
+    for (auto str : absVl)
+    {
+        std::cout << str << std::endl;
+    }
+
+    std::vector<ent> files;
+    std::list<std::string> dirs = {"."};
+    adddir(files, dirs);
 
 
     return 0;

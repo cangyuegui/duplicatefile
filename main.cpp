@@ -1,51 +1,6 @@
-#include <iostream>
-#include <map>
-#include <string>
-#include <list>
-#include <vector>
-#include <algorithm>
-#include <sys/types.h>
-#include <dirent.h>
-#include <cstdio>
-#include <sys/stat.h>
-//#include <QtCore>
+#include "dup_file.h"
 
-typedef unsigned __int128 uint128_t;
-
-static bool is_file(const std::string& filename) {
-    struct stat   buffer;
-    return (stat (filename.c_str(), &buffer) == 0 && S_ISREG(buffer.st_mode));
-}
-
-static bool is_dir(const std::string& filefodler) {
-    struct stat   buffer;
-    return (stat (filefodler.c_str(), &buffer) == 0 && S_ISDIR(buffer.st_mode));
-}
-
-enum MARK_TYPE
-{
-    MD5,
-    POINT128
-};
-
-/*
-struct FileCheck
-{
-    QFileInfo info;
-    __int128 speedMark;
-};
-*/
-
-struct ent{
-    std::string name;
-    uint128_t mark;
-    ent(std::string name): name(name){}
-    bool operator<(const ent &e) const {
-        return name < e.name;
-    }
-};
-
-void adddir(std::vector<ent>& files, std::list<std::string>& dirs)
+void adddir(std::list<std::string>& dirs, std::function<void(file_mark*)> doFile)
 {
     while (!dirs.empty())
     {
@@ -69,13 +24,26 @@ void adddir(std::vector<ent>& files, std::list<std::string>& dirs)
                 std::string path(ep->d_name, ep->d_namlen);
                 std::string fullpath = name + "/" + path;
                 std::cout << fullpath << std::endl;
-                if (is_file(fullpath))
-                {
-                     files.push_back(ent(fullpath));
 
+                struct stat buffer;
+                if (stat (fullpath.c_str(), &buffer) != 0)
+                {
+                    continue;
                 }
 
-                if (is_dir(fullpath))
+                if (is_file(buffer))
+                {
+                     if (doFile)
+                     {
+                         file_mark* fm = new file_mark(fullpath);
+                         memset(fm->mark.byte, 0, sizeof(fm->mark.byte));
+                         memset(fm->md5.byte, 0, sizeof(fm->md5.byte));
+                         fm->size = buffer.st_size;
+                         doFile(fm);
+                     }
+                }
+
+                if (is_dir(buffer))
                 {
                      dirs.push_back(fullpath);
                 }
@@ -86,25 +54,7 @@ void adddir(std::vector<ent>& files, std::list<std::string>& dirs)
     }
 }
 
-/*
-QString convertToSytemEncode(const QByteArray &srcString)
-{
-    const char* systemCode =
-        #ifdef Q_OS_WIN
-            "GB2312"
-        #elif defined Q_OS_LINUX
-            "UTF-8"
-        #endif
-            ;
-    QTextCodec* pTextCodec = QTextCodec::codecForName(systemCode);
-    if (NULL == pTextCodec)
-    {
-        return "";
-    }
-    return pTextCodec->toUnicode(srcString);
-}
-*/
-std::map<std::string, std::string> parseArg(int argc, char **argv, std::list<std::string>& absVl)
+std::map<std::string, std::string> parse_arg(int argc, char **argv, std::list<std::string>& absVl)
 {
     std::map<std::string, std::string> res;
 
@@ -166,131 +116,11 @@ std::map<std::string, std::string> parseArg(int argc, char **argv, std::list<std
 
 }
 
-/*
-void traversalFile(const QFileInfo& fi, std::function<void(const QFileInfo&)> doFunc = nullptr)
-{
-    if (!fi.exists())
-    {
-        return;
-    }
-
-    if (fi.isFile())
-    {
-        if (doFunc)
-        {
-            doFunc(fi);
-        }
-
-        return;
-    }
-
-    if (!fi.isDir())
-    {
-        return;
-    }
-
-    QDir dir(fi.absoluteFilePath());
-    for (auto cfi : dir.entryInfoList())
-    {
-        traversalFile(cfi, doFunc);
-    }
-}
-
-QByteArray fileChecksum(const QString &fileName,
-                        QCryptographicHash::Algorithm hashAlgorithm)
-{
-    QFile f(fileName);
-    if (f.open(QFile::ReadOnly)) {
-        QCryptographicHash hash(hashAlgorithm);
-        if (hash.addData(&f)) {
-            f.close();
-            return hash.result();
-        }
-    }
-    return QByteArray("error md5");
-}
-
-QByteArray GetRapidNumber(const QFileInfo& info, int level)
-{
-    if (info.size() < 1024 * 1024 || level > 10)
-    {
-        return fileChecksum(info.absoluteFilePath(), QCryptographicHash::Md5);
-    }
-
-    QByteArray array64;
-    QFile file(info.absoluteFilePath());
-    if (!file.open(QFile::ReadOnly))
-    {
-        array64 = "error 64";
-        return array64;
-    }
-
-    qint64 rapidStep = 0;
-    switch (level)
-    {
-    case 0:
-        rapidStep = 8;
-        break;
-    case 1:
-        rapidStep = 32;
-        break;
-    case 2:
-        rapidStep = 128;
-        break;
-    default:
-        rapidStep = 256;
-        break;
-    }
-
-    qint64 step = (info.size() - 100) / rapidStep;
-    for (qint64 i = 0; i < rapidStep; ++i)
-    {
-        qint64 start = step * i;
-        file.seek(start);
-        array64 += file.read(8);
-    }
-
-    QCryptographicHash hash(QCryptographicHash::Md5);
-    hash.addData(array64);
-    array64 = hash.result();
-    QString pNumber = QString::number(info.size(), 16);
-    QString stringData("****************");
-    for (int i = 0; i < pNumber.size(); ++i)
-    {
-        stringData[i] = pNumber[i];
-    }
-
-    array64.prepend(stringData.toUtf8());
-    return array64;
-}
-
-QByteArray Get64Info(const QString &fileName)
-{
-    QByteArray array64;
-    QFile file(fileName);
-    if (!file.open(QFile::ReadOnly))
-    {
-        array64 = "error 64";
-    }
-
-    if (file.size() <= 64)
-    {
-        array64 = file.readAll();
-    }
-    else
-    {
-        array64 = file.read(64);
-    }
-
-    file.close();
-    return array64;
-}
-*/
 
 int main(int argc, char *argv[])
 {
     std::list<std::string> absVl;
-    std::map<std::string, std::string> vars = parseArg(argc, argv, absVl);
+    std::map<std::string, std::string> vars = parse_arg(argc, argv, absVl);
     for (auto i = vars.begin(); i != vars.end(); ++i)
     {
         std::cout << i->first << i->second << std::endl;
@@ -301,10 +131,9 @@ int main(int argc, char *argv[])
         std::cout << str << std::endl;
     }
 
-    std::vector<ent> files;
-    std::list<std::string> dirs = {"."};
-    adddir(files, dirs);
-
+    std::vector<file_mark> files;
+    std::list<std::string> dirs = {"D:\\Work\\build-FilterMultiFilesExe-Desktop_Qt_5_14_1_MinGW_64_bit-Debug"};
+    adddir(dirs, nullptr);
 
     return 0;
 }

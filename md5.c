@@ -64,7 +64,7 @@ void MD5Final(MD5_CTX *context, unsigned char digest[16])
 	MD5Encode(digest, context->state, 16);
 }
 
-void MD5Encode(unsigned char *output,unsigned int *input,unsigned int len)
+void MD5Encode(unsigned char *output,uint32_t *input,unsigned int len)
 {
 	unsigned int i = 0;
 	unsigned int j = 0;

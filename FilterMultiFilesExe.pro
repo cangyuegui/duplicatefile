@@ -16,12 +16,14 @@ DEFINES += QT_DEPRECATED_WARNINGS
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    cal_md5.c \
+    dup_file.cpp \
     main.cpp \
-    main_md5.c \
     md5.c
 
 HEADERS += \
-    main_md5.h \
+    cal_md5.h \
+    dup_file.h \
     md5.h
 
 FORMS +=

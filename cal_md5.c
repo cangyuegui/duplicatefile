@@ -1,3 +1,4 @@
+#include "cal_md5.h"
 #include "md5.h"
 
 #include <stdio.h>
@@ -8,41 +9,10 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define READ_DATA_SIZE	1024
+#define READ_DATA_SIZE	1024 * 1024
 #define MD5_SIZE		16
 #define MD5_STR_LEN		(MD5_SIZE * 2)
 
-/************** main test **************/
-/*
-int main(int argc, char *argv[])
-{
-    if (argc != 2)
-    {
-        return 0;
-    }
-	int ret;
-    const char *file_path = argv[1];
-	char md5_str[MD5_STR_LEN + 1];
-    //const char *test_str = "gchinaran@gmail.com";
-
-	// test file md5
-    ret = Compute_file_md5(file_path, md5_str);
-    if (0 == ret)
-    {
-        printf("[file - %s] md5 value:\n", file_path);
-        printf("%s\n", md5_str);
-    }
-
-
-	// test string md5 
-    //Compute_string_md5((unsigned char *)test_str, strlen(test_str), md5_str);
-    //printf("[string - %s] md5 value:\n", test_str);
-    //printf("%s\n", md5_str);
-
-
-	return 0;
-}
-*/
 
 /**
  * compute the value of a string
@@ -78,7 +48,7 @@ int compute_string_md5(unsigned char *dest_str, unsigned int dest_len, char *md5
  * @param  md5_str
  * @return 0: ok, -1: fail
  */
-int compute_file_md5(const char *file_path, uint8_t* odata)
+int compute_file_md5(const char *file_path, unsigned char *odata)
 {
     //int i;
 	int fd;

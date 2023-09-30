@@ -1,9 +1,12 @@
 #include "dup_file.h"
 #include <algorithm>
 #include <locale>
+#include <stdlib.h>
+#include <functional>
+#include <io.h>
 #include "help_en.h"
 
-void adddir(std::list<std::string>& dirs, std::function<void(file_mark*)> doFile)
+void adddir(std::list<std::string>& dirs, std::function<void(const std::string&, size_t)> doFile)
 {
     while (!dirs.empty())
     {
@@ -25,7 +28,7 @@ void adddir(std::list<std::string>& dirs, std::function<void(file_mark*)> doFile
             if(ep->d_name[0] != '.')
             {
                 std::string path(ep->d_name, ep->d_namlen);
-                std::string fullpath = name + "/" + path;
+                std::string fullpath = get_absolute_path(name + "/" + path);
                 std::cout << fullpath << std::endl;
 
                 struct stat buffer;
@@ -38,11 +41,7 @@ void adddir(std::list<std::string>& dirs, std::function<void(file_mark*)> doFile
                 {
                      if (doFile)
                      {
-                         file_mark* fm = new file_mark(fullpath);
-                         memset(fm->mark.byte, 0, sizeof(fm->mark.byte));
-                         memset(fm->md5.byte, 0, sizeof(fm->md5.byte));
-                         fm->size = buffer.st_size;
-                         doFile(fm);
+                         doFile(fullpath, buffer.st_size);
                      }
                 }
 
@@ -73,9 +72,10 @@ std::string to_lower(const std::string& src)
 struct param_set
 {
     bool help;
-    bool strict;
+    uint8_t strict;
     std::string del_dir;
     std::list<std::string> src_dirs;
+    std::string error;
 };
 
 void parse_arg(int argc, char *argv[], param_set& params)
@@ -87,27 +87,49 @@ void parse_arg(int argc, char *argv[], param_set& params)
     }
 
     uint8_t state = 0; //1 del dir
+    bool ever_set_backup = false;
     for (int i = 1; i < argc; ++i)
     {
         std::string targ(argv[i]);
 
         if (state)
         {
-            params.del_dir = targ;
+            std::string ttarg = get_absolute_path(targ);
+            if (ttarg.empty() || access(ttarg.c_str(), F_OK) != 0 || !is_dir(ttarg))
+            {
+                params.error = "backup dir is error ";
+                params.error += targ;
+                return;
+            }
+
+            params.del_dir = ttarg;
             state = 0;
             continue;
         }
 
         std::string ltarg = to_lower(targ);
+        if (ltarg == "-quick")
+        {
+            params.strict = 0;
+            continue;
+        }
+
         if (ltarg == "-strict")
         {
-            params.strict = true;
+            params.strict = 1;
+            continue;
+        }
+
+        if (ltarg == "-extremely-strict")
+        {
+            params.strict = 2;
             continue;
         }
 
         if (ltarg == "-backup")
         {
             state = 1;
+            ever_set_backup = true;
             continue;
         }
 
@@ -117,11 +139,22 @@ void parse_arg(int argc, char *argv[], param_set& params)
             continue;
         }
 
+        std::string ttarg = get_absolute_path(targ);
+        if (ttarg.empty() || access(ttarg.c_str(), F_OK) != 0 || !is_dir(ttarg))
+        {
+            continue;
+        }
+
         if (std::find(params.src_dirs.begin(), params.src_dirs.end(), targ) == params.src_dirs.end())
         {
             params.src_dirs.push_back(targ);
             continue;
         }
+    }
+
+    if (ever_set_backup && params.del_dir.empty())
+    {
+        params.error = "use -backup but not set dir";
     }
 }
 
@@ -129,7 +162,7 @@ int main(int argc, char *argv[])
 {
     param_set ps;
     ps.help = false;
-    ps.strict = false;
+    ps.strict = 0;
     parse_arg(argc, argv, ps);
 
     if (ps.help)
@@ -138,14 +171,24 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    if (ps.src_dirs.empty())
+    if (!ps.error.empty())
     {
-        std::cerr << "no dir need to be resolved";
+        std::cerr << ps.error << std::endl;
         return 0;
     }
 
-    std::vector<file_mark> files;
-    adddir(ps.src_dirs, nullptr);
+    if (ps.src_dirs.empty())
+    {
+        std::cerr << "no dir need to be resolved" << std::endl;
+        return 0;
+    }
+
+    dup_file df;
+    df.strict = ps.strict;
+    df.del_dir = ps.del_dir;
+
+    std::function<void(const std::string&, size_t)> f = std::bind(&dup_file::dofile, &df, std::placeholders::_1, std::placeholders::_2);
+    adddir(ps.src_dirs, f);
 
     return 0;
 }

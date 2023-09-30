@@ -1,197 +1,11 @@
 #include "dup_file.h"
-
 #include <libgen.h>
-
-extern "C"
-{
-#include "cal_md5.h"
-}
-
-#ifdef __MINGW32__
-char *strndup(const char *s, size_t n)
-{
-    size_t len = strlen(s);
-    size_t new_len = (n < len) ? n : len;
-    char *new_s = (char*)malloc(new_len + 1);
-    if (new_s == NULL)
-    {
-        perror("malloc");
-        return NULL;
-    }
-    memcpy(new_s, s, new_len);
-    new_s[new_len] = '\0';
-    return new_s;
-}
-#endif
-
-bool get_eigenvalue(const std::string &path, size_t size, eigenvalue &data, MARK_TYPE type)
-{
-    memset(&data, 0, sizeof(data));
-
-    int fd;
-    if (size <= 16)
-    {
-#ifdef WIN32
-        fd = open(path.c_str(), O_RDONLY | O_BINARY);
-#else
-        fd = open(path.c_str(), O_RDONLY);
-#endif
-        if (-1 == fd)
-        {
-            std::cerr << "open file failure " << path << std::endl;
-            return false;
-        }
-
-        int ret = read(fd, data.byte, sizeof(data.byte));
-        if (-1 == ret)
-        {
-            std::cerr << "read file failure " << path << std::endl;
-            close(fd);
-            return false;
-        }
-
-        return true;
-    }
-
-    if (type == MD5)
-    {
-        unsigned char* ddata = data.byte;
-        const char* cpath = path.c_str();
-        if (compute_file_md5(cpath, ddata) == 0)
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    size_t step = size / 16;
-    if (step < 1)
-    {
-        step = 1;
-    }
-#ifdef WIN32
-    fd = open(path.c_str(), O_RDONLY | O_BINARY);
-#else
-    fd = open(path.c_str(), O_RDONLY);
-#endif
-    if (-1 == fd)
-    {
-        std::cerr << "open file failure " << path << std::endl;
-        return false;
-    }
-
-    for (size_t i = 0; i < 16; ++i)
-    {
-        int ret = read(fd, &(data.byte[i]), 1);
-        if (-1 == ret)
-        {
-            std::cerr << "read file failure " << path << std::endl;
-            close(fd);
-            return false;
-        }
-        ret = lseek(fd, step - 1, SEEK_CUR);
-        if (-1 == ret)
-        {
-            std::cerr << "read file failure " << path << std::endl;
-            close(fd);
-            return false;
-        }
-    }
-
-    close(fd);
-    return true;
-}
-
-bool less_eigenvalue(const eigenvalue &e1, const eigenvalue &e2)
-{
-    if (e1.data[0] == e2.data[0])
-    {
-        return e1.data[1] < e2.data[1];
-    }
-
-    return e1.data[0] < e2.data[0];
-}
-
-std::string replace_all(std::string str, const std::string &from, const std::string &to)
-{
-    size_t start_pos = 0;
-    while((start_pos = str.find(from, start_pos)) != std::string::npos)
-    {
-        str.replace(start_pos, from.length(), to);
-        start_pos += to.length(); // Handles case where 'to' is a substring of 'from'
-    }
-    return str;
-}
-
-bool equal_eigenvalue(const eigenvalue &e1, const eigenvalue &e2)
-{
-    return e1.data[0] == e2.data[0] &&  e1.data[1] == e2.data[1];
-}
-
-bool empty_eigenvalue(const eigenvalue& e1)
-{
-    return e1.data[0] == 0 && e1.data[1] == 0;
-}
-
-bool is_file(const struct stat &buffer)
-{
-    return S_ISREG(buffer.st_mode);
-}
-
-bool is_dir(const struct stat &buffer)
-{
-    return S_ISDIR(buffer.st_mode);
-}
-
-bool is_dir(const std::string &dir)
-{
-    struct stat src_stat;
-    if (stat(dir.c_str(), &src_stat) == 0 &&  S_ISDIR(src_stat.st_mode))
-    {
-        return true;
-    }
-
-    return false;
-}
-
-int same_file_system(const char *src, const char *dst)
-{
-    struct stat src_stat, dst_stat;
-    if (stat(src, &src_stat) == -1 || stat(dst, &dst_stat) == -1)
-    {
-        perror("stat");
-        return -1;
-    }
-
-    if (src_stat.st_dev == dst_stat.st_dev)
-    {
-        return 1;
-    }
-
-    return 0;
-}
+#include <errno.h>
+#include <stdio.h>
 
 dup_file::dup_file()
 {
-    std::set<file_mark*> fms;
-    for (auto i = mark_files.begin(); i != mark_files.end(); ++i)
-    {
-        fms.insert(i->second);
-    }
-    for (auto i = md5_files.begin(); i != md5_files.end(); ++i)
-    {
-        fms.insert(i->second);
-    }
 
-    for (auto i : fms)
-    {
-        delete i;
-    }
-
-    mark_files.clear();
-    md5_files.clear();
-    fms.clear();
 }
 
 dup_file::~dup_file()
@@ -199,61 +13,107 @@ dup_file::~dup_file()
 
 }
 
-void dup_file::dofile(file_mark *mark)
+void dup_file::dofile(const std::string &filepath, size_t size)
 {
-    if (!get_eigenvalue(mark->name, mark->size, mark->mark, POINT128))
+    if (walked.count(filepath))
     {
-        std::cerr << "read file failure " << mark->name << std::endl;
-        delete mark;
+        return;
+    }
+    walked.insert(filepath);
+
+    auto size_itr = dcompare_tree.find(size);
+    if (size_itr == dcompare_tree.end())
+    {
+        auto ct = new compare_size;
+        ct->file_path = filepath;
+        dcompare_tree.insert({size, ct});
         return;
     }
 
-    auto oitr = mark_files.find(mark->mark);
-    if (oitr == mark_files.end())
+    compare_size* size_ct = size_itr->second;
+    if (size_ct->point128.empty())
     {
-        mark_files.insert({mark->mark, mark});
-        return;
-    }
-
-    if (mark->size <= 16 || !strict)
-    {
-        std::cout << "duplicate file " << mark->name << " 0 "  << oitr->second->name << std::endl;
-        abandon(mark->name);
-        delete mark;
-        return;
-    }
-
-    if (empty_eigenvalue(oitr->second->md5))
-    {
-        if (!get_eigenvalue(oitr->second->name, oitr->second->size, oitr->second->md5, MD5))
+        eigenvalue e;
+        if (!get_eigenvalue(size_ct->file_path, size, e, POINT128))
         {
-            std::cerr << "read file failure " << oitr->second->name << std::endl;
-            delete mark;
-            std::cerr << "fatal error";
+            std::cerr << "read file mark fatal " << size_ct->file_path << std::endl;
             exit(0);
             return;
         }
 
-        md5_files.insert({oitr->second->md5, oitr->second});
+        compare_point128* point128 = new compare_point128;
+        point128->file_path = size_ct->file_path;
+        size_ct->file_path.clear();
+        size_ct->point128.insert({e, point128});
     }
 
-    if (!get_eigenvalue(mark->name, mark->size, mark->md5, MD5))
+    eigenvalue pint128e;
+    if (!get_eigenvalue(filepath, size, pint128e, POINT128))
     {
-        std::cerr << "read file failure " << mark->name << std::endl;
-        delete mark;
+        std::cerr << "read file mark failure, nope " << filepath << std::endl;
         return;
     }
 
-    auto md5itr = md5_files.find(mark->md5);
-    if (md5itr != md5_files.end())
+    auto point128itr = size_ct->point128.find(pint128e);
+    if (point128itr == size_ct->point128.end())
     {
-        std::cout << "duplicate file " << mark->name << " 0 "  << md5itr->second->name << std::endl;
-        abandon(mark->name);
-        delete mark;
+        compare_point128* point128 = new compare_point128;
+        point128->file_path = filepath;
+        size_ct->point128.insert({pint128e, point128});
         return;
     }
 
-    md5_files.insert({mark->md5, mark});
+    if (size <= 16 || strict <= FAST)
+    {
+        abandon(filepath);
+        return;
+    }
+
+    compare_point128* point128_ct = point128itr->second;
+    if (point128_ct->md5.empty())
+    {
+        eigenvalue e;
+        if (!get_eigenvalue(point128_ct->file_path, size, e, MD5))
+        {
+            std::cerr << "read file md5 fatal " << point128_ct->file_path << std::endl;
+            exit(0);
+            return;
+        }
+
+        point128_ct->md5.insert({e, {point128_ct->file_path}});
+        point128_ct->file_path.clear();
+    }
+
+    eigenvalue md5e;
+    if (!get_eigenvalue(filepath, size, md5e, MD5))
+    {
+        std::cerr << "read file md5 failure, nope " << filepath << std::endl;
+        return;
+    }
+
+    auto md5itr = point128_ct->md5.find(md5e);
+    if (md5itr == point128_ct->md5.end())
+    {
+        point128_ct->md5.insert({md5e, {filepath}});
+        return;
+    }
+
+    if (strict <= STRICT)
+    {
+        abandon(filepath);
+        return;
+    }
+
+    for (auto str : md5itr->second)
+    {
+        if (compare_binary_files(str.c_str(), filepath.c_str()))
+        {
+            abandon(filepath);
+            return;
+        }
+    }
+
+     md5itr->second.push_back(filepath);
 }
 
 void dup_file::abandon(const std::string &file)
@@ -271,29 +131,13 @@ void dup_file::del(const std::string &file)
 {
     if (remove(file.c_str()) < 0)
     {
-        std::cout << "delete duplicate file failure " << file << " 0 "  << std::endl;
+        std::cout << "delete duplicate file failure " << file << std::endl;
     }
 }
 
 void dup_file::move(const std::string &file)
 {
-    size_t nlen = strlen(file.c_str()) + 1;
-    char tmp_str[nlen];
-    memcpy(tmp_str, file.c_str(), nlen - 1);
-    tmp_str[nlen - 1] = 0;
-    char* filename = basename(tmp_str);
-    if (!filename)
-    {
-        std::cerr << "move fatal get file name" << std::endl;
-        exit(0);
-        return;
-    }
-
-    std::string targetname = del_dir;
-    targetname += "/";
-    targetname += std::string(filename);
-
-    int result = same_file_system(file.c_str(), targetname.c_str());
+    int result = same_file_system(file.c_str(), del_dir.c_str());
     if (result == -1)
     {
         std::cerr << "move fatal get if same file system" << std::endl;
@@ -301,7 +145,7 @@ void dup_file::move(const std::string &file)
         return;
     }
 
-    targetname = unique_filename(targetname);
+    std::string targetname = unique_filename(file);
 
     if (result == 1)
     {
@@ -320,7 +164,10 @@ void dup_file::move(const std::string &file)
             std::cerr << "move failure when move file in different file system" << file << " -> " << targetname << std::endl;
             return;
         }
+
     }
+
+    del(file);
 }
 
 int dup_file::copy_file(const std::string& src, const std::string& dst)
@@ -349,8 +196,13 @@ int dup_file::copy_file(const std::string& src, const std::string& dst)
     }
     char buffer[4096];
     ssize_t bytes_read, bytes_written;
-    while ((bytes_read = read(src_fd, buffer, sizeof(buffer))) > 0)
+    while ((bytes_read = read(src_fd, buffer, sizeof(buffer))))
     {
+        if (bytes_read < 0)
+        {
+            break;
+        }
+
         bytes_written = write(dst_fd, buffer, bytes_read);
         if (bytes_written == -1)
         {
@@ -376,52 +228,10 @@ int dup_file::copy_file(const std::string& src, const std::string& dst)
 
 std::string dup_file::unique_filename(const std::string& path)
 {
-    char *new_path = strdup(path.c_str());
-    if (new_path == NULL)
-    {
-        perror("strdup");
-        return NULL;
-    }
-
-    int result = access(new_path, F_OK);
-
-    if (result == -1)
-        return new_path;
-
-    int i = 1;
-    char *dot = strrchr(new_path, '.');
-    char *base = strndup(new_path, dot - new_path);
-    char *ext = strdup(dot);
-    free(new_path);
-
-    do
-    {
-        //base-i.ext
-        new_path = (char*)malloc(strlen(base) + strlen(ext) + 12);
-        if (new_path == NULL)
-        {
-            perror("malloc");
-            free(base);
-            free(ext);
-            return NULL;
-        }
-        sprintf(new_path, "%s-%d%s", base, i, ext);
-        result = access(new_path, F_OK);
-        if (result == 0)
-        {
-            free(new_path);
-            i++;
-        }
-    }
-    while (result == 0);
-
-    free(base);
-    free(ext);
-
-    std::string res(new_path);
-    free(new_path);
-    return res;
+    return get_copy_path(path, del_dir);
 }
+
+
 
 
 

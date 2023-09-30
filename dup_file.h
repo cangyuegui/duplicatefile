@@ -1,65 +1,26 @@
 #ifndef DUP_FILE_H
 #define DUP_FILE_H
 
-#include <iostream>
-#include <map>
-#include <string>
-#include <list>
-#include <vector>
-#include <algorithm>
-#include <sys/types.h>
-#include <dirent.h>
-#include <cstdio>
-#include <sys/stat.h>
-#include <functional>
-#include <fcntl.h>
-#include <set>
+#include "file_tool.h"
 
-enum MARK_TYPE
+struct compare_point128
 {
-    MD5,
-    POINT128
+    std::string file_path;
+    std::map<eigenvalue, std::list<std::string>, eigenvalue_compare> md5;
 };
 
-union eigenvalue
+struct compare_size
 {
-    uint32_t mark[4];
-    uint8_t byte[16];
-    uint64_t data[2];
+    std::string file_path;
+    std::map<eigenvalue, compare_point128*, eigenvalue_compare> point128;
 };
 
-struct file_mark
+enum dup_file_level
 {
-    std::string name;
-    eigenvalue mark;
-    eigenvalue md5;
-    size_t size;
-    file_mark(const std::string& cname): name(cname){}
-    bool operator<(const file_mark &e) const
-    {
-        return name < e.name;
-    }
+    FAST = 0,
+    STRICT = 1,
+    EXTREMELY_STRICT = 2
 };
-
-
-bool get_eigenvalue(const std::string& path, size_t size, eigenvalue& data, MARK_TYPE type);
-bool less_eigenvalue(const eigenvalue& e1, const eigenvalue& e2);
-bool equal_eigenvalue(const eigenvalue& e1, const eigenvalue& e2);
-bool empty_eigenvalue(const eigenvalue& e1);
-
-struct eigenvalue_compare
-{
-   bool operator() (const eigenvalue& lhs, const eigenvalue& rhs) const
-   {
-       return less_eigenvalue(lhs, rhs);
-   }
-};
-
-std::string replace_all(std::string str, const std::string& from, const std::string& to);
-bool is_file(const struct stat& buffer);
-bool is_dir(const struct stat& buffer);
-bool is_dir(const std::string& dir);
-int same_file_system(const char *src, const char *dst);
 
 class dup_file
 {
@@ -67,7 +28,7 @@ public:
     dup_file();
     virtual ~dup_file();
 
-    void dofile(file_mark* mark);
+    void dofile(const std::string& filepath, size_t size);
     void abandon(const std::string& file);
     void del(const std::string& file);
     void move(const std::string& file);
@@ -75,11 +36,11 @@ public:
     std::string unique_filename(const std::string& path);
 
     std::string del_dir;
-    bool strict;
+    uint8_t strict; //0 fast 1 strict 2 Extremely strict
 
 private:
-    std::map<eigenvalue, file_mark*, eigenvalue_compare> md5_files;
-    std::map<eigenvalue, file_mark*, eigenvalue_compare> mark_files;
+    std::set<std::string> walked;
+    std::map<size_t, compare_size*> dcompare_tree;
 };
 
 #endif // DUP_FILE_H

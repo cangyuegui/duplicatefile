@@ -1,0 +1,6 @@
+command format: dir dir dir ... {-strict} {-h} {-backup dir}
+-h      : print help info
+-strict : use strict mode, if quick mark is same, will use md5 to compare
+-backup : do not delete the duplicate file, only move to backup dirs
+all dir input will used to remove duplicate files
+

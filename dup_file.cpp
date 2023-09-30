@@ -34,7 +34,7 @@ bool get_eigenvalue(const std::string &path, size_t size, eigenvalue &data, MARK
 #ifdef WIN32
         fd = open(path.c_str(), O_RDONLY | O_BINARY);
 #else
-        fd = open(file_path, O_RDONLY);
+        fd = open(path.c_str(), O_RDONLY);
 #endif
         if (-1 == fd)
         {
@@ -55,7 +55,9 @@ bool get_eigenvalue(const std::string &path, size_t size, eigenvalue &data, MARK
 
     if (type == MD5)
     {
-        if (compute_file_md5(path.c_str(), data.byte) == 0)
+        unsigned char* ddata = data.byte;
+        const char* cpath = path.c_str();
+        if (compute_file_md5(cpath, ddata) == 0)
         {
             return true;
         }
@@ -71,7 +73,7 @@ bool get_eigenvalue(const std::string &path, size_t size, eigenvalue &data, MARK
 #ifdef WIN32
     fd = open(path.c_str(), O_RDONLY | O_BINARY);
 #else
-    fd = open(file_path, O_RDONLY);
+    fd = open(path.c_str(), O_RDONLY);
 #endif
     if (-1 == fd)
     {
@@ -142,6 +144,17 @@ bool is_dir(const struct stat &buffer)
     return S_ISDIR(buffer.st_mode);
 }
 
+bool is_dir(const std::string &dir)
+{
+    struct stat src_stat;
+    if (stat(dir.c_str(), &src_stat) == 0 &&  S_ISDIR(src_stat.st_mode))
+    {
+        return true;
+    }
+
+    return false;
+}
+
 int same_file_system(const char *src, const char *dst)
 {
     struct stat src_stat, dst_stat;
@@ -160,6 +173,28 @@ int same_file_system(const char *src, const char *dst)
 }
 
 dup_file::dup_file()
+{
+    std::set<file_mark*> fms;
+    for (auto i = mark_files.begin(); i != mark_files.end(); ++i)
+    {
+        fms.insert(i->second);
+    }
+    for (auto i = md5_files.begin(); i != md5_files.end(); ++i)
+    {
+        fms.insert(i->second);
+    }
+
+    for (auto i : fms)
+    {
+        delete i;
+    }
+
+    mark_files.clear();
+    md5_files.clear();
+    fms.clear();
+}
+
+dup_file::~dup_file()
 {
 
 }
@@ -255,6 +290,7 @@ void dup_file::move(const std::string &file)
     }
 
     std::string targetname = del_dir;
+    targetname += "/";
     targetname += std::string(filename);
 
     int result = same_file_system(file.c_str(), targetname.c_str());
@@ -386,6 +422,8 @@ std::string dup_file::unique_filename(const std::string& path)
     free(new_path);
     return res;
 }
+
+
 
 
 

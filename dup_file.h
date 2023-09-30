@@ -58,12 +58,14 @@ struct eigenvalue_compare
 std::string replace_all(std::string str, const std::string& from, const std::string& to);
 bool is_file(const struct stat& buffer);
 bool is_dir(const struct stat& buffer);
+bool is_dir(const std::string& dir);
 int same_file_system(const char *src, const char *dst);
 
 class dup_file
 {
 public:
     dup_file();
+    virtual ~dup_file();
 
     void dofile(file_mark* mark);
     void abandon(const std::string& file);
@@ -72,7 +74,6 @@ public:
     int copy_file(const std::string& src, const std::string& dst);
     std::string unique_filename(const std::string& path);
 
-    std::string src_dir;
     std::string del_dir;
     bool strict;
 

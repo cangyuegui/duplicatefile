@@ -40,4 +40,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 DISTFILES += \
     help_en.txt
 
-QMAKE_LFLAGS_RELEASE += -static-libgcc -static-libstdc++ -static
+QMAKE_CFLAGS_RELEASE += -ffunction-sections -fdata-sections -fno-exceptions -O3
+QMAKE_CXXFLAGS_RELEASE += -ffunction-sections -fdata-sections -fno-rtti -fno-exceptions -O3
+QMAKE_LFLAGS_RELEASE += -static -Wl,--gc-sections -dead_strip
+#-static-libgcc -static-libstdc++

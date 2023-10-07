@@ -8,6 +8,9 @@ CONFIG += c++11 static
 # deprecated API in order to know how to port your code away from it.
 DEFINES += QT_DEPRECATED_WARNINGS
 
+
+include (./3rd/libpng/libpng.pri)
+
 # You can also make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
@@ -35,3 +38,5 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 DISTFILES += \
     help_en.txt
+
+QMAKE_LFLAGS_RELEASE += -static-libgcc -static-libstdc++ -static

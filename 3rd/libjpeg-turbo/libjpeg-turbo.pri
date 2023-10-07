@@ -13,9 +13,9 @@
 
 DEFINES += LIBJPEG_TURBO_SUPPORT
 
-mystep.commands = echo 'hello. This is my custom process step'
-QMAKE_EXTRA_TARGETS += mystep
-PRE_TARGETDEPS += mystep
+buildstep.commands = '$$PWD/build-mingw.bat'
+QMAKE_EXTRA_TARGETS += buildstep
+PRE_TARGETDEPS += buildstep
 
 #NASM_SOURCES  += \
 #           $$PWD/simd/x86_64/jsimdcpu.asm

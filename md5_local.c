@@ -1,4 +1,4 @@
-#include "md5.h"
+#include "md5_local.h"
 #include <memory.h>
 
 unsigned char PADDING[] =
@@ -11,13 +11,13 @@ unsigned char PADDING[] =
 
 void MD5Init(MD5_CTX *context)
 {
-	context->count[0] = 0;
-	context->count[1] = 0;
+    context->count[0] = 0;
+    context->count[1] = 0;
 
-	context->state[0] = 0x67452301;
-	context->state[1] = 0xEFCDAB89;
-	context->state[2] = 0x98BADCFE;
-	context->state[3] = 0x10325476;
+    context->state[0] = 0x67452301;
+    context->state[1] = 0xEFCDAB89;
+    context->state[2] = 0x98BADCFE;
+    context->state[3] = 0x10325476;
 }
 
 void MD5Update(MD5_CTX *context, unsigned char *input, unsigned int inputlen)
@@ -26,21 +26,21 @@ void MD5Update(MD5_CTX *context, unsigned char *input, unsigned int inputlen)
 	unsigned int index = 0;
 	unsigned int partlen = 0;
 
-	index = (context->count[0] >> 3) & 0x3F;
+    index = (context->count[0] >> 3) & 0x3F;
 	partlen = 64 - index;
-	context->count[0] += inputlen << 3;
+    context->count[0] += inputlen << 3;
 
-	if(context->count[0] < (inputlen << 3))
-		context->count[1]++;
-	context->count[1] += inputlen >> 29;
+    if(context->count[0] < (inputlen << 3))
+        context->count[1]++;
+    context->count[1] += inputlen >> 29;
 
 	if(inputlen >= partlen)
 	{
-		memcpy(&context->buffer[index], input,partlen);
-		MD5Transform(context->state, context->buffer);
+        memcpy(&context->buffer[index], input,partlen);
+        MD5Transform(context->state, context->buffer);
 
 		for(i = partlen; i+64 <= inputlen; i+=64)
-			MD5Transform(context->state, &input[i]);
+            MD5Transform(context->state, &input[i]);
 
 		index = 0;        
 	}  
@@ -48,7 +48,7 @@ void MD5Update(MD5_CTX *context, unsigned char *input, unsigned int inputlen)
 	{
 		i = 0;
 	}
-	memcpy(&context->buffer[index], &input[i], inputlen-i);
+    memcpy(&context->buffer[index], &input[i], inputlen-i);
 }
 
 void MD5Final(MD5_CTX *context, unsigned char digest[16])
@@ -56,12 +56,12 @@ void MD5Final(MD5_CTX *context, unsigned char digest[16])
 	unsigned int index = 0,padlen = 0;
 	unsigned char bits[8];
 
-	index = (context->count[0] >> 3) & 0x3F;
+    index = (context->count[0] >> 3) & 0x3F;
 	padlen = (index < 56)?(56-index):(120-index);
-	MD5Encode(bits, context->count, 8);
+    MD5Encode(bits, context->count, 8);
 	MD5Update(context, PADDING, padlen);
 	MD5Update(context, bits, 8);
-	MD5Encode(digest, context->state, 16);
+    MD5Encode(digest, context->state, 16);
 }
 
 void MD5Encode(unsigned char *output,uint32_t *input,unsigned int len)

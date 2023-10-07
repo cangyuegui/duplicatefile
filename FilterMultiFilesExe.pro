@@ -10,6 +10,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 
 include (./3rd/libpng/libpng.pri)
+include (./3rd/libjpeg-turbo/libjpeg-turbo.pri)
 
 # You can also make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -21,13 +22,13 @@ SOURCES += \
     dup_file.cpp \
     file_tool.cpp \
     main.cpp \
-    md5.c
+    md5_local.c
 
 HEADERS += \
     cal_md5.h \
     dup_file.h \
     file_tool.h \
-    md5.h
+    md5_local.h
 
 FORMS +=
 

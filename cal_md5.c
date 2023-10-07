@@ -1,5 +1,5 @@
 #include "cal_md5.h"
-#include "md5.h"
+#include "md5_local.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -6,6 +6,12 @@
 #include <io.h>
 #include "help_en.h"
 
+#ifdef _MSC_VER
+#include <iterator>
+#include <io.h>
+#define F_OK 06
+#endif
+
 void adddir(std::list<std::string>& dirs, std::function<void(const std::string&, size_t)> doFile)
 {
     while (!dirs.empty())

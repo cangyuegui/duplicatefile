@@ -9,8 +9,8 @@ CONFIG += c++11 static
 DEFINES += QT_DEPRECATED_WARNINGS
 
 
-include (./3rd/libpng/libpng.pri)
-include (./3rd/libjpeg-turbo/libjpeg-turbo.pri)
+#include (./3rd/libpng/libpng.pri)
+#include (./3rd/libjpeg-turbo/libjpeg-turbo.pri)
 
 # You can also make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -40,7 +40,13 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 DISTFILES += \
     help_en.txt
 
+win32-msvc*{
+INCLUDEPATH += $$PWD/msvc
+}
+
+win32-g++ {
 QMAKE_CFLAGS_RELEASE += -ffunction-sections -fdata-sections -fno-exceptions -O3
 QMAKE_CXXFLAGS_RELEASE += -ffunction-sections -fdata-sections -fno-rtti -fno-exceptions -O3
 QMAKE_LFLAGS_RELEASE += -static -Wl,--gc-sections -dead_strip
+}
 #-static-libgcc -static-libstdc++

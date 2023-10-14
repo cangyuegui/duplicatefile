@@ -15,6 +15,12 @@
 #include <fcntl.h>
 #include <set>
 
+#ifdef _MSC_VER
+#ifdef STRICT
+#undef STRICT
+#endif
+#endif
+
 
 enum MARK_TYPE
 {

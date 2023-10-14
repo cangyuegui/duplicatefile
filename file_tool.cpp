@@ -1,6 +1,8 @@
 #include "file_tool.h"
 
+#ifdef __MINGW32__
 #include <libgen.h>
+#endif
 #include <stdlib.h>
 
 extern "C"

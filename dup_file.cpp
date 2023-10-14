@@ -1,7 +1,10 @@
 #include "dup_file.h"
+#ifdef __GNUC__
 #include <libgen.h>
+#endif
 #include <errno.h>
 #include <stdio.h>
+#include <unistd.h>
 
 dup_file::dup_file()
 {
